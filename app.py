@@ -13,15 +13,27 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "devsecret")
 
 # ====== DB: psycopg3 (importante) ======
+# ===== Configuração de banco =====
 uri = os.getenv("DATABASE_URL", "").strip()
 if not uri:
-    raise RuntimeError("DATABASE_URL não definido nas variáveis de ambiente.")
+    raise RuntimeError("DATABASE_URL não definido.")
 
-# Converte QUALQUER variante para o dialeto psycopg3
+# força psycopg3
 uri = (uri
        .replace("postgres://", "postgresql+psycopg://", 1)
        .replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
        .replace("postgresql://", "postgresql+psycopg://", 1))
+
+app.config["SQLALCHEMY_DATABASE_URI"] = uri
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,    # testa conexão antes de usar
+    "pool_recycle": 270,      # recicla antes de 5 min
+    "pool_size": 5,           # pequeno (starter)
+    "max_overflow": 5,
+    "pool_timeout": 30,
+}
+
 
 # Para Neon, manter ?sslmode=require (ok com psycopg3). channel_binding também é ok.
 app.config["SQLALCHEMY_DATABASE_URI"] = uri
@@ -48,9 +60,6 @@ login_manager.login_view = "login"
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# Cria as tabelas no startup (simples para MVP)
-with app.app_context():
-    db.create_all()
 
 # Rotas
 @app.route("/")
@@ -102,5 +111,6 @@ def healthz():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
 
 
