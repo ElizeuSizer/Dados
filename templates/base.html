@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Flask Login{% endblock %}</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 560px; margin: 40px auto; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .btn { padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer; background: #005BAB; color: #fff; }
+    .input { padding: 10px; border: 1px solid #ccc; border-radius: 8px; width: 100%; }
+    .row { margin: 12px 0; }
+    .flash { padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+    .flash.success { background: #e7f6ec; color: #176f3d; }
+    .flash.danger { background: #fdecea; color: #ab1f2b; }
+    a { color: #005BAB; text-decoration: none; }
+  </style>
+</head>
+<body>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</body>
+</html>
