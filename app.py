@@ -6,32 +6,32 @@ from models import db, User
 from forms import RegisterForm, LoginForm
 import bcrypt
 
+# Carrega .env localmente; no Render as envs já vêm do painel
 load_dotenv()
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "devsecret")
 
-# --- FIX DA URL DO BANCO (psycopg3) ---
+# ====== DB: psycopg3 (importante) ======
 uri = os.getenv("DATABASE_URL", "").strip()
 if not uri:
     raise RuntimeError("DATABASE_URL não definido nas variáveis de ambiente.")
 
-# Render/Neon costumam fornecer "postgresql://..." (ou às vezes "postgres://")
-# Precisamos converter para o dialeto do psycopg3:
-if uri.startswith("postgres://"):
-    uri = uri.replace("postgres://", "postgresql+psycopg://", 1)
-elif uri.startswith("postgresql://"):
-    uri = uri.replace("postgresql://", "postgresql+psycopg://", 1)
+# Converte QUALQUER variante para o dialeto psycopg3
+uri = (uri
+       .replace("postgres://", "postgresql+psycopg://", 1)
+       .replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+       .replace("postgresql://", "postgresql+psycopg://", 1))
 
+# Para Neon, manter ?sslmode=require (ok com psycopg3). channel_binding também é ok.
 app.config["SQLALCHEMY_DATABASE_URI"] = uri
-# --------------------------------------
-
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle": 1800,
 }
 
+# Segurança extra em produção
 if os.getenv("RENDER"):
     app.config.update(
         SESSION_COOKIE_SECURE=True,
@@ -39,6 +39,7 @@ if os.getenv("RENDER"):
         SESSION_COOKIE_SAMESITE="Lax",
     )
 
+# Inicializa extensões
 db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
@@ -47,6 +48,59 @@ login_manager.login_view = "login"
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# Cria as tabelas no startup (simples para MVP)
 with app.app_context():
     db.create_all()
+
+# Rotas
+@app.route("/")
+def index():
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("login"))
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    form = RegisterForm()
+    if form.validate_on_submit():
+        if User.query.filter_by(username=form.username.data).first():
+            flash("Usuário já existe", "danger")
+            return redirect(url_for("register"))
+        hashed_pw = bcrypt.hashpw(form.password.data.encode("utf-8"), bcrypt.gensalt())
+        user = User(username=form.username.data, password=hashed_pw.decode("utf-8"))
+        db.session.add(user)
+        db.session.commit()
+        flash("Conta criada com sucesso!", "success")
+        return redirect(url_for("login"))
+    return render_template("register.html", form=form)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and bcrypt.checkpw(form.password.data.encode("utf-8"), user.password.encode("utf-8")):
+            login_user(user)
+            return redirect(url_for("dashboard"))
+        flash("Usuário ou senha inválidos", "danger")
+    return render_template("login.html", form=form)
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    return f"Bem-vindo {current_user.username}! <a href='/logout'>Sair</a>"
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+@app.route("/healthz")
+def healthz():
+    return "ok", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
 
