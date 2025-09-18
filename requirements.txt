@@ -6,8 +6,10 @@ WTForms>=3.1,<4.0
 SQLAlchemy>=2.0,<3.0
 Flask-SQLAlchemy>=3.1,<4.0
 
-psycopg[binary]>=3.2,<3.3   # driver Postgres compatível com Python 3.13
+psycopg[binary]>=3.2,<3.3
 python-dotenv>=1.0,<2.0
 gunicorn>=21.2,<22.0
 bcrypt>=4.1,<5.0
+
+
 
